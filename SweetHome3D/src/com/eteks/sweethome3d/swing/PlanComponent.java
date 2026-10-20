@@ -2002,77 +2002,105 @@ public class PlanComponent extends JComponent implements PlanView, Scrollable, P
     }
     return strokeWidth;
   }
-  
+
   /**
    * Prints this component plan at the scale given in the home print attributes or at a scale 
    * that makes it fill <code>pageFormat</code> imageable size if this attribute is <code>null</code>.
    */
   public int print(Graphics g, PageFormat pageFormat, int pageIndex) {
-    List<Selectable> printedItems = getPaintedItems(); 
-    Rectangle2D printedItemBounds = getItemsBounds(g, printedItems);
-    if (printedItemBounds != null) {
-      double imageableX = pageFormat.getImageableX();
-      double imageableY = pageFormat.getImageableY();
-      double imageableWidth = pageFormat.getImageableWidth();
-      double imageableHeight = pageFormat.getImageableHeight();
-      float printScale;
-      float rowIndex;
-      float columnIndex;
-      int pagesPerRow;
-      int pagesPerColumn;
-      if (this.home.getPrint() == null || this.home.getPrint().getPlanScale() == null) {
-        // Compute a scale that ensures the plan will fill the component if plan scale is null
-        printScale = getPrintPreferredScale(g, pageFormat) * LengthUnit.centimeterToInch(72);
-        if (pageIndex > 0) {
+    if (this.home.getLevels().isEmpty()) return NO_SUCH_PAGE;
+    Level originallySelected = this.home.getSelectedLevel();
+
+    double imageableX = pageFormat.getImageableX();
+    double imageableY = pageFormat.getImageableY();
+    double imageableWidth = pageFormat.getImageableWidth();
+    double imageableHeight = pageFormat.getImageableHeight();
+    float printScale = 0f;
+    float rowIndex;
+    float columnIndex;
+    int pagesPerRow = 0;
+    int pagesPerColumn = 0;
+
+    List<Selectable> printedItems = null;
+    Rectangle2D printedItemBounds = null;
+
+    if (this.home.getPrint() == null || this.home.getPrint().getPlanScale() == null) {
+      if (pageIndex < 0 || pageIndex >= this.home.getLevels().size()) return NO_SUCH_PAGE;
+
+      Level dest = this.home.getLevels().get(pageIndex);
+      this.home.setSelectedLevel(dest);
+
+      printedItems = getPaintedItems();
+      printedItemBounds = getItemsBounds(g, printedItems);
+
+      printScale = getPrintPreferredScale(g, pageFormat) * LengthUnit.centimeterToInch(72);
+      pagesPerRow = 1;
+      pagesPerColumn = 1;
+      rowIndex   = 0;
+      columnIndex = 0;
+    } else {
+      int pageCount = 0;
+      int pageCounted = 0;
+      for (Level level : this.home.getLevels()) {
+        this.home.setSelectedLevel(level);
+        printedItems = getPaintedItems();
+        printedItemBounds = getItemsBounds(g, printedItems);
+
+        if (printedItemBounds == null) {
+          this.home.setSelectedLevel(originallySelected);
           return NO_SUCH_PAGE;
         }
-        pagesPerRow = 1;
-        pagesPerColumn = 1;
-        rowIndex   = 0;
-        columnIndex = 0;
-      } else {
+
         // Apply print scale to paper size expressed in 1/72nds of an inch
         printScale = this.home.getPrint().getPlanScale().floatValue() * LengthUnit.centimeterToInch(72);
-        pagesPerRow = (int)(printedItemBounds.getWidth() * printScale / imageableWidth);
+        pagesPerRow = (int) (printedItemBounds.getWidth() * printScale / imageableWidth);
         if (printedItemBounds.getWidth() * printScale != imageableWidth) {
           pagesPerRow++;
         }
-        pagesPerColumn = (int)(printedItemBounds.getHeight() * printScale / imageableHeight);
+        pagesPerColumn = (int) (printedItemBounds.getHeight() * printScale / imageableHeight);
         if (printedItemBounds.getHeight() * printScale != imageableHeight) {
           pagesPerColumn++;
         }
-        if (pageIndex >= pagesPerRow * pagesPerColumn) {
-          return NO_SUCH_PAGE;
-        }
-        rowIndex = pageIndex / pagesPerRow;
-        columnIndex = pageIndex - rowIndex * pagesPerRow;
+
+        pageCount = pageCounted + pagesPerRow * pagesPerColumn;
+        if (pageIndex < pageCount) break;
+        pageCounted = pageCount;
       }
-          
-      Graphics2D g2D = (Graphics2D)g.create();
-      g2D.clip(new Rectangle2D.Double(imageableX, imageableY, imageableWidth, imageableHeight));
-      // Change coordinates system to paper imageable origin
-      g2D.translate(imageableX - columnIndex * imageableWidth, imageableY - rowIndex * imageableHeight);
-      g2D.scale(printScale, printScale);
-      float extraMargin = getStrokeWidthExtraMargin(printedItems, PaintMode.PRINT);
-      g2D.translate(-printedItemBounds.getMinX() + extraMargin,
-          -printedItemBounds.getMinY() + extraMargin);
-      // Center plan in component if possible
-      g2D.translate(Math.max(0, 
-              (imageableWidth * pagesPerRow / printScale - printedItemBounds.getWidth() - 2 * extraMargin) / 2), 
-          Math.max(0, 
-              (imageableHeight * pagesPerColumn / printScale - printedItemBounds.getHeight() - 2 * extraMargin) / 2));
-      setRenderingHints(g2D);
-      try {
-        // Print component contents
-        paintContent(g2D, printScale, PaintMode.PRINT);
-      } catch (InterruptedIOException ex) {
-        // Ignore exception because it may happen only in EXPORT paint mode 
-      }   
-      g2D.dispose();
-      return PAGE_EXISTS;
-    } else {
-      return NO_SUCH_PAGE;
+
+      if (pageCount <= pageIndex) {
+        this.home.setSelectedLevel(originallySelected);
+        return NO_SUCH_PAGE;
+      }
+
+      int partialPageIndex = pageIndex - pageCounted;
+      rowIndex = partialPageIndex / pagesPerRow;
+      columnIndex = partialPageIndex - rowIndex * pagesPerRow;
     }
+
+    Graphics2D g2D = (Graphics2D)g.create();
+    g2D.clip(new Rectangle2D.Double(imageableX, imageableY, imageableWidth, imageableHeight));
+    // Change coordinates system to paper imageable origin
+    g2D.translate(imageableX - columnIndex * imageableWidth, imageableY - rowIndex * imageableHeight);
+    g2D.scale(printScale, printScale);
+    float extraMargin = getStrokeWidthExtraMargin(printedItems, PaintMode.PRINT);
+    g2D.translate(-printedItemBounds.getMinX() + extraMargin,
+        -printedItemBounds.getMinY() + extraMargin);
+    // Center plan in component if possible
+    g2D.translate(Math.max(0,
+            (imageableWidth * pagesPerRow / printScale - printedItemBounds.getWidth() - 2 * extraMargin) / 2),
+        Math.max(0,
+            (imageableHeight * pagesPerColumn / printScale - printedItemBounds.getHeight() - 2 * extraMargin) / 2));
+    setRenderingHints(g2D);
+    try {
+      // Print component contents
+      paintContent(g2D, printScale, PaintMode.PRINT);
+    } catch (InterruptedIOException ex) {
+      // Ignore exception because it may happen only in EXPORT paint mode
+    }
+    g2D.dispose();
+
+    this.home.setSelectedLevel(originallySelected);
+    return PAGE_EXISTS;
   }
   
   /**
