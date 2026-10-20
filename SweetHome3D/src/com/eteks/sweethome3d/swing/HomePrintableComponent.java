@@ -343,7 +343,7 @@ public class HomePrintableComponent extends JComponent implements Printable {
     }
     
     View furnitureView = this.controller.getFurnitureController().getView();
-    if (furnitureView != null 
+    if (furnitureView != null
         && (homePrint == null || homePrint.isFurniturePrinted())) {
       FurnitureTable furnitureTable = null;
       final FurnitureTable.FurnitureFilter furnitureFilter;
@@ -355,8 +355,7 @@ public class HomePrintableComponent extends JComponent implements Printable {
         furnitureFilter = furnitureTable.getFurnitureFilter();
         furnitureTable.setFurnitureFilter(new FurnitureTable.FurnitureFilter() {
             public boolean include(Home home, HomePieceOfFurniture piece) {
-              return (furnitureFilter == null || furnitureFilter.include(home, piece))
-                  && (piece.getLevel() == null || piece.getLevel().isViewable());
+              return (furnitureFilter == null || furnitureFilter.include(home, piece));
             }
           });
       } else {
