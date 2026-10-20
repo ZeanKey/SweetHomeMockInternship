@@ -730,7 +730,21 @@ public class FurnitureTable extends JTable implements View, Printable {
     // Create a printable column model from the column model of this table 
     // with printable renderers for each column
     DefaultTableColumnModel printableColumnModel = new DefaultTableColumnModel();
-    TableColumnModel columnModel = getColumnModel();
+    TableColumnModel sourceModel = getColumnModel();
+    TableColumnModel columnModel = new DefaultTableColumnModel();
+
+    if (sourceModel instanceof FurnitureTableColumnModel) {
+      FurnitureTableColumnModel model = (FurnitureTableColumnModel)sourceModel;
+      TableColumn levelColumn = model.availableColumns.get(HomePieceOfFurniture.SortableProperty.LEVEL);
+      List<TableColumn> columns = Collections.list(model.getColumns());
+      for (TableColumn column : columns) {
+        columnModel.addColumn(column);
+      }
+      if (!columns.contains(levelColumn)) {
+        columnModel.addColumn(levelColumn);
+      }
+    }
+
     final DefaultTableCellRenderer defaultRenderer = new DefaultTableCellRenderer();
     defaultRenderer.setHorizontalAlignment(DefaultTableCellRenderer.CENTER);
     TableCellRenderer printableHeaderRenderer = new TableCellRenderer() {
@@ -778,7 +792,7 @@ public class FurnitureTable extends JTable implements View, Printable {
       // Change printable column header renderer
       printableColumn.setHeaderRenderer(printableHeaderRenderer);
       printableColumnModel.addColumn(printableColumn);
-    }    
+    }
     return print(g, pageFormat, pageIndex, printableColumnModel, Color.BLACK);
   }
 
